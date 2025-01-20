@@ -28,6 +28,7 @@ async function run() {
 
         const database = client.db('nanotasks_db')
         const taskCollection = database.collection('tasks')
+        const userCollection = database.collection('users')
 
         // task related apis
         app.get('/tasks', async (req, res) => {
@@ -42,10 +43,37 @@ async function run() {
             res.send(result)
         })
 
+        app.post ('/tasks', async(req, res)=>{
+            const task = req.body
+            const result = await taskCollection.insertOne(task)
+            res.send(result)
+        })
+
         app.delete('/task/:id', async (req, res) => {
             const id = req.params.id
             const query = {_id: new ObjectId(id)}
             const result = await taskCollection.deleteOne(query)
+            res.send(result)
+        })
+
+
+        // users related apis
+        
+        app.get('/users', async(req, res)=>{
+            const result = await userCollection.find().toArray()
+            res.send(result)
+        })
+
+        app.get('/user/:email', async(req, res)=>{
+            const email = req.params.email
+            const query = { email : email}
+            const result = await userCollection.findOne(query)
+            res.send(result)
+        })
+
+        app.post('/users', async(req, res)=>{
+            const user = req.body 
+            const result = await userCollection.insertOne(user)
             res.send(result)
         })
 
