@@ -36,14 +36,14 @@ async function run() {
             res.send(result)
         })
 
-        app.get('/tasks/:email', async(req, res)=>{
+        app.get('/tasks/:email', async (req, res) => {
             const email = req.params.email
-            const query = {buyer_email: email}
+            const query = { buyer_email: email }
             const result = await taskCollection.find(query).toArray()
             res.send(result)
         })
 
-        app.post ('/tasks', async(req, res)=>{
+        app.post('/tasks', async (req, res) => {
             const task = req.body
             const result = await taskCollection.insertOne(task)
             res.send(result)
@@ -51,29 +51,50 @@ async function run() {
 
         app.delete('/task/:id', async (req, res) => {
             const id = req.params.id
-            const query = {_id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const result = await taskCollection.deleteOne(query)
             res.send(result)
         })
 
 
         // users related apis
-        
-        app.get('/users', async(req, res)=>{
+
+        app.get('/users', async (req, res) => {
             const result = await userCollection.find().toArray()
             res.send(result)
         })
 
-        app.get('/user/:email', async(req, res)=>{
+        app.get('/user/:email', async (req, res) => {
             const email = req.params.email
-            const query = { email : email}
+            const query = { email: email }
             const result = await userCollection.findOne(query)
             res.send(result)
         })
 
-        app.post('/users', async(req, res)=>{
-            const user = req.body 
+        app.post('/users', async (req, res) => {
+            const user = req.body
             const result = await userCollection.insertOne(user)
+            res.send(result)
+        })
+
+        app.patch('/users/:id', async (req, res) => {
+            const id = req.params.id
+            const {role: newRole} = req.body
+            const query = { _id: new ObjectId(id) }
+            const updatedRole = {
+                $set: {
+                    role: newRole
+                }
+            }
+            const options = { upsert: true };
+            const result = await userCollection.updateOne(query, updatedRole, options)
+            res.send(result)
+        })
+
+        app.delete('/users/:id', async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const result = await userCollection.deleteOne(query)
             res.send(result)
         })
 
