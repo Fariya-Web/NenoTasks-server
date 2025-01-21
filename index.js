@@ -71,6 +71,12 @@ async function run() {
             res.send(result)
         })
 
+        app.get('/topworkers', async(req, res)=>{
+            const query = {role : 'worker'}
+            const result = await userCollection.find(query).sort({coin: -1}).limit(6).toArray()
+            res.send(result) 
+        })
+
         app.post('/users', async (req, res) => {
             const user = req.body
             const result = await userCollection.insertOne(user)
