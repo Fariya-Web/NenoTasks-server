@@ -28,6 +28,7 @@ async function run() {
 
         const database = client.db('nanotasks_db')
         const taskCollection = database.collection('tasks')
+        const submissionCollection = database.collection('submissions')
         const userCollection = database.collection('users')
 
         // task related apis
@@ -64,6 +65,31 @@ async function run() {
         })
 
 
+        // submission related apis
+
+        app.get('/submissions/:email', async(req, res)=>{
+            const email = req.params.email
+            const query = {worker_email: email}
+            const result = await submissionCollection.find(query).toArray()
+            res.send(result)
+        })
+
+        app.post('/submissions', async (req, res) => {
+            const submission = req.body
+            const result = await submissionCollection.insertOne(submission)
+
+            const query = { _id: new ObjectId(submission.task_id) }
+            const updatedTask = {
+                $inc: {
+                    required_workers: -1, // Decrement required_workers by 1
+                }
+            }
+            const taskRes = await taskCollection.updateOne(query, updatedTask) 
+
+            res.send(result)
+        })
+
+
         // users related apis
 
         app.get('/users', async (req, res) => {
@@ -78,21 +104,28 @@ async function run() {
             res.send(result)
         })
 
-        app.get('/topworkers', async(req, res)=>{
-            const query = {role : 'worker'}
-            const result = await userCollection.find(query).sort({coin: -1}).limit(6).toArray()
-            res.send(result) 
+        app.get('/topworkers', async (req, res) => {
+            const query = { role: 'worker' }
+            const result = await userCollection.find(query).sort({ coin: -1 }).limit(6).toArray()
+            res.send(result)
         })
 
         app.post('/users', async (req, res) => {
             const user = req.body
+
+            const query = { email: user.email }
+            const existingUser = await userCollection.findOne(query)
+            if (existingUser) {
+                return res.send({ message: 'user already exists', insertId: null })
+            }
+
             const result = await userCollection.insertOne(user)
             res.send(result)
         })
 
         app.patch('/users/:id', async (req, res) => {
             const id = req.params.id
-            const {role: newRole} = req.body
+            const { role: newRole } = req.body
             const query = { _id: new ObjectId(id) }
             const updatedRole = {
                 $set: {
