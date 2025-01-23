@@ -111,6 +111,7 @@ async function run() {
             }
             const result = await submissionCollection.updateOne(query, updatedStatus)
             
+            
             const submission = await submissionCollection.findOne(query)
             const workerQuery = {email: submission.worker_email}
             const updateUserCoin = {
@@ -118,6 +119,7 @@ async function run() {
                     coin: + submission.payable_amount, // Decrement required_workers by 1
                 }
             }
+
             const UserCoinRes = await userCollection.updateOne(workerQuery, updateUserCoin)
 
             res.send(result)
