@@ -231,6 +231,34 @@ async function run() {
 
         // stats api
 
+        // admin stat
+        app.get('/adminStats/:email', async (req, res) => {
+            const buyerEmail = req.params.email;
+
+            const workers = await userCollection.countDocuments({ role: 'worker' })
+            const buyers = await userCollection.countDocuments({ role: 'buyer' })
+
+            const coins = await userCollection.aggregate([
+                {
+                    $group: {
+                        _id: null,
+                        totalCoin: {
+                            $sum: '$coin'
+                        }
+                    }
+                }
+            ]).toArray()
+
+            const totalCoins = coins.length > 0 ? coins[0].totalCoins : 0;
+
+            res.send({
+                workers,
+                buyers,
+                totalCoins
+            })
+        })
+
+
         // buyer stat
         app.get('/buyerStats/:email', async (req, res) => {
             const buyerEmail = req.params.email;
@@ -261,6 +289,36 @@ async function run() {
         })
 
 
+        // workerStats
+        app.get('/workerStats/:email', async (req, res) => {
+            const workerEmail = req.params.email;
+
+            const submissions = await submissionCollection.countDocuments({ worker_email: workerEmail })
+            const pendingSubmissions = await submissionCollection.countDocuments({ worker_email: workerEmail, status: 'pending' })
+            // const payments = await paymentCollection.estimatedDocumentCount()
+            
+            const payAmount = await submissionCollection.aggregate([
+                {
+                    $match: { buyer_email: buyerEmail, status: 'pending' } // Filter tasks by buyer_email
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalPendingTasks: {
+                            $sum: '$payable_amount'
+                        }
+                    }
+                }
+            ]).toArray()
+            
+            const totalPayAmount = payAmount.length > 0 ? payAmount[0].totalPayAmount : 0;
+
+            res.send({
+                submissions,
+                pendingSubmissions,
+                totalPayAmount
+            })
+        })
 
 
 
