@@ -31,12 +31,16 @@ async function run() {
         const submissionCollection = database.collection('submissions')
         const userCollection = database.collection('users')
 
+
+
+
         // task related apis
         app.get('/tasks', async (req, res) => {
             const result = await taskCollection.find().toArray()
             res.send(result)
         })
 
+        // tasks posted by buyer
         app.get('/tasks/:email', async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
@@ -44,6 +48,7 @@ async function run() {
             res.send(result)
         })
 
+        // task details
         app.get('/task/:id', async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
@@ -51,16 +56,32 @@ async function run() {
             res.send(result)
         })
 
+        // buyer posting tasks
         app.post('/tasks', async (req, res) => {
             const task = req.body
             const result = await taskCollection.insertOne(task)
             res.send(result)
         })
 
+        // buyer & admin deleting task
         app.delete('/task/:id', async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
+            
+            const task = await taskCollection.findOne(query)
+            console.log(task);
+            const buyerEmail = task.buyer_email
+            console.log(buyerEmail);
+            const buyerQuery = {email: buyerEmail}
+            const updatedBuyerCoin = {
+                $inc: {
+                    coin: + (task.required_workers*task.payable_amount) , //increasing buyer coin
+                }
+            }
+            const userCoinRes = await userCollection.updateOne(buyerQuery, updatedBuyerCoin)
+            // finally deleting after buyers coin update
             const result = await taskCollection.deleteOne(query)
+            
             res.send(result)
         })
 
@@ -75,7 +96,7 @@ async function run() {
             res.send(result)
         })
 
-        // buyer task submissions
+        // buyer tasks - submissions
         app.get('/submission/:email', async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
