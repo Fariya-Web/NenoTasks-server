@@ -32,15 +32,19 @@ async function run() {
         const userCollection = database.collection('users')
 
 
+        // jwt apis
+
 
 
         // task related apis
+
+        // admin access
         app.get('/tasks', async (req, res) => {
             const result = await taskCollection.find().toArray()
             res.send(result)
         })
 
-        // tasks posted by buyer
+        // tasks posted by buyer, buyer access
         app.get('/tasks/:email', async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
@@ -48,7 +52,7 @@ async function run() {
             res.send(result)
         })
 
-        // task details
+        // task details, worker access
         app.get('/task/:id', async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
@@ -86,9 +90,10 @@ async function run() {
         })
 
 
+
         // submission related apis
 
-        // all submission by single worker
+        // all submission by single worker, worker access
         app.get('/submissions/:email', async (req, res) => {
             const email = req.params.email
             const query = { worker_email: email }
@@ -96,7 +101,7 @@ async function run() {
             res.send(result)
         })
 
-        // buyer tasks - submissions
+        // buyer tasks - submissions, buyer access
         app.get('/submission/:email', async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
@@ -104,7 +109,7 @@ async function run() {
             res.send(result)
         })
 
-        // worker posting submission
+        // worker posting submission, worker access
         app.post('/submissions', async (req, res) => {
             const submission = req.body
             const result = await submissionCollection.insertOne(submission)
@@ -120,7 +125,7 @@ async function run() {
             res.send(result)
         })
 
-        // submission approve
+        // submission approve , buyer access
         app.patch('/submit/:id', async (req, res) => {
             const id = req.params.id
 
@@ -145,8 +150,7 @@ async function run() {
             res.send(result)
         })
 
-
-        // submission reject
+        // submission reject, buyer access
         app.patch('/submitR/:id', async (req, res) => {
             const id = req.params.id
 
@@ -176,6 +180,7 @@ async function run() {
 
         // users related apis
 
+        // admin access
         app.get('/users', async (req, res) => {
             const result = await userCollection.find().toArray()
             res.send(result)
@@ -207,6 +212,7 @@ async function run() {
             res.send(result)
         })
 
+        // admin changing user role
         app.patch('/users/:id', async (req, res) => {
             const id = req.params.id
             const { role: newRole } = req.body
@@ -221,6 +227,7 @@ async function run() {
             res.send(result)
         })
 
+        // admin deleting user
         app.delete('/users/:id', async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
