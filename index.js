@@ -67,6 +67,7 @@ async function run() {
 
         // submission related apis
 
+        // all submission by single worker
         app.get('/submissions/:email', async(req, res)=>{
             const email = req.params.email
             const query = {worker_email: email}
@@ -74,6 +75,15 @@ async function run() {
             res.send(result)
         })
 
+        // buyer task submissions
+        app.get('/submission/:email', async(req, res)=>{
+            const email = req.params.email
+            const query = {buyer_email: email}
+            const result = await submissionCollection.find(query).toArray()
+            res.send(result)
+        })
+
+        // worker posting submission
         app.post('/submissions', async (req, res) => {
             const submission = req.body
             const result = await submissionCollection.insertOne(submission)
@@ -85,6 +95,30 @@ async function run() {
                 }
             }
             const taskRes = await taskCollection.updateOne(query, updatedTask) 
+
+            res.send(result)
+        })
+
+        // submission approve
+        app.patch('/submit/:id', async(req, res)=>{
+            const id = req.params.id
+
+            const query = {_id: new ObjectId(id)}
+            const updatedStatus = {
+                $set:{
+                    status : 'approved'
+                }
+            }
+            const result = await submissionCollection.updateOne(query, updatedStatus)
+            
+            const submission = await submissionCollection.findOne(query)
+            const workerQuery = {email: submission.worker_email}
+            const updateUserCoin = {
+                $inc: {
+                    coin: + submission.payable_amount, // Decrement required_workers by 1
+                }
+            }
+            const UserCoinRes = await userCollection.updateOne(workerQuery, updateUserCoin)
 
             res.send(result)
         })
