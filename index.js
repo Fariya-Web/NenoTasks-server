@@ -68,17 +68,17 @@ async function run() {
         // submission related apis
 
         // all submission by single worker
-        app.get('/submissions/:email', async(req, res)=>{
+        app.get('/submissions/:email', async (req, res) => {
             const email = req.params.email
-            const query = {worker_email: email}
+            const query = { worker_email: email }
             const result = await submissionCollection.find(query).toArray()
             res.send(result)
         })
 
         // buyer task submissions
-        app.get('/submission/:email', async(req, res)=>{
+        app.get('/submission/:email', async (req, res) => {
             const email = req.params.email
-            const query = {buyer_email: email}
+            const query = { buyer_email: email }
             const result = await submissionCollection.find(query).toArray()
             res.send(result)
         })
@@ -94,29 +94,28 @@ async function run() {
                     required_workers: -1, // Decrement required_workers by 1
                 }
             }
-            const taskRes = await taskCollection.updateOne(query, updatedTask) 
+            const taskRes = await taskCollection.updateOne(query, updatedTask)
 
             res.send(result)
         })
 
         // submission approve
-        app.patch('/submit/:id', async(req, res)=>{
+        app.patch('/submit/:id', async (req, res) => {
             const id = req.params.id
 
-            const query = {_id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const updatedStatus = {
-                $set:{
-                    status : 'approved'
+                $set: {
+                    status: 'approved'
                 }
             }
             const result = await submissionCollection.updateOne(query, updatedStatus)
-            
-            
+
             const submission = await submissionCollection.findOne(query)
-            const workerQuery = {email: submission.worker_email}
+            const workerQuery = { email: submission.worker_email }
             const updateUserCoin = {
                 $inc: {
-                    coin: + submission.payable_amount, // Decrement required_workers by 1
+                    coin: + submission.payable_amount, 
                 }
             }
 
@@ -124,6 +123,34 @@ async function run() {
 
             res.send(result)
         })
+
+
+        // submission reject
+        app.patch('/submitR/:id', async (req, res) => {
+            const id = req.params.id
+
+            const query = { _id: new ObjectId(id) }
+            const updatedStatus = {
+                $set: {
+                    status: 'rejected'
+                }
+            }
+            const result = await submissionCollection.updateOne(query, updatedStatus)
+
+            const submission = await submissionCollection.findOne(query)
+            const taskQuery = { _id: new ObjectId(submission.task_id) }
+
+            const updateWorkerCount = {
+                $inc: {
+                    required_workers: +1, // Decrement required_workers by 1
+                }
+            }
+
+            const taskRes = await taskCollection.updateOne(taskQuery, updateWorkerCount)
+
+            res.send(result)
+        })
+
 
 
         // users related apis
