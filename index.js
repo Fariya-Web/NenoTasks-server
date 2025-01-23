@@ -299,12 +299,12 @@ async function run() {
             
             const payAmount = await submissionCollection.aggregate([
                 {
-                    $match: { buyer_email: buyerEmail, status: 'pending' } // Filter tasks by buyer_email
+                    $match: { worker_email: workerEmail, status: 'approved'   } 
                 },
                 {
                     $group: {
                         _id: null,
-                        totalPendingTasks: {
+                        totalPayAmount: {
                             $sum: '$payable_amount'
                         }
                     }
@@ -315,8 +315,8 @@ async function run() {
 
             res.send({
                 submissions,
+                totalPayAmount,
                 pendingSubmissions,
-                totalPayAmount
             })
         })
 
