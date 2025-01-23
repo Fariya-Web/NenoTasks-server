@@ -229,6 +229,40 @@ async function run() {
         })
 
 
+        // stats api
+
+        // buyer stat
+        app.get('/buyerStats/:email', async (req, res) => {
+            const buyerEmail = req.params.email;
+
+            const tasks = await taskCollection.countDocuments({ buyer_email: buyerEmail })
+            // const payments = await paymentCollection.estimatedDocumentCount()
+            
+            const pendingTasks = await taskCollection.aggregate([
+                {
+                    $match: { buyer_email: buyerEmail } // Filter tasks by buyer_email
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalPendingTasks: {
+                            $sum: '$required_workers'
+                        }
+                    }
+                }
+            ]).toArray()
+            
+            const totalPendingTasks = pendingTasks.length > 0 ? pendingTasks[0].totalPendingTasks : 0;
+
+            res.send({
+                tasks,
+                totalPendingTasks
+            })
+        })
+
+
+
+
 
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
