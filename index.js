@@ -31,6 +31,7 @@ async function run() {
         const taskCollection = database.collection('tasks')
         const submissionCollection = database.collection('submissions')
         const userCollection = database.collection('users')
+        const withdrawCollection = database.collection('withdraws')
 
 
         // jwt apis
@@ -56,7 +57,49 @@ async function run() {
             })
         }
 
-        // role varify api
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            const isAdmin = user?.role === 'admin'
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
+        }
+
+
+        const verifyBuyer = async (req, res, next) => {
+            const email = req.decoded.email
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            const isBuyer = user?.role === 'buyer'
+            if (!isBuyer) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
+        }
+
+        const verifyWorker = async (req, res, next) => {
+
+            if (!req.decoded || !req.decoded.email) {
+                return res.status(403).send({ error: 'Unauthorized access' });
+            }
+            const email = req.decoded.email
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            const isWorker = user?.role === 'worker'
+            if (!isWorker) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
+        }
+
+
+
+
+
+        // role check api
 
         // admin
         app.get('/user/admin/:email', varifyToken, async (req, res) => {
@@ -119,7 +162,7 @@ async function run() {
         })
 
         // tasks posted by buyer, buyer access
-        app.get('/tasks/:email', varifyToken, async (req, res) => {
+        app.get('/tasks/:email', varifyToken, verifyBuyer, async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
             const result = await taskCollection.find(query).toArray()
@@ -127,15 +170,15 @@ async function run() {
         })
 
         // task details, worker access
-        app.get('/task/:id', varifyToken, async (req, res) => {
+        app.get('/task/:id', varifyToken, verifyWorker, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await taskCollection.findOne(query)
             res.send(result)
         })
 
-        // buyer posting tasks
-        app.post('/tasks', varifyToken, async (req, res) => {
+        // buyer posting tasks, buyer access
+        app.post('/tasks', varifyToken, verifyBuyer, async (req, res) => {
             const task = req.body
             const result = await taskCollection.insertOne(task)
             res.send(result)
@@ -168,7 +211,7 @@ async function run() {
         // submission related apis
 
         // all submission by single worker, worker access
-        app.get('/submissions/:email', varifyToken, async (req, res) => {
+        app.get('/submissions/:email', varifyToken, verifyWorker, async (req, res) => {
             const email = req.params.email
             const query = { worker_email: email }
             const result = await submissionCollection.find(query).toArray()
@@ -176,7 +219,7 @@ async function run() {
         })
 
         // buyer tasks - submissions, buyer access
-        app.get('/submission/:email', varifyToken, async (req, res) => {
+        app.get('/submission/:email', varifyToken, verifyBuyer, async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
             const result = await submissionCollection.find(query).toArray()
@@ -184,7 +227,7 @@ async function run() {
         })
 
         // worker posting submission, worker access
-        app.post('/submissions', varifyToken, async (req, res) => {
+        app.post('/submissions', varifyToken, verifyWorker, async (req, res) => {
             const submission = req.body
             const result = await submissionCollection.insertOne(submission)
 
@@ -200,7 +243,7 @@ async function run() {
         })
 
         // submission approve , buyer access
-        app.patch('/submit/:id', varifyToken, async (req, res) => {
+        app.patch('/submit/:id', varifyToken, verifyBuyer, async (req, res) => {
             const id = req.params.id
 
             const query = { _id: new ObjectId(id) }
@@ -225,7 +268,7 @@ async function run() {
         })
 
         // submission reject, buyer access
-        app.patch('/submitR/:id', varifyToken, async (req, res) => {
+        app.patch('/submitR/:id', varifyToken, verifyBuyer, async (req, res) => {
             const id = req.params.id
 
             const query = { _id: new ObjectId(id) }
@@ -251,12 +294,51 @@ async function run() {
         })
 
 
+        // withdeaw related apis
+
+        app.get('/withdraws', varifyToken, async (req, res) => {
+            const result = await withdrawCollection.find().toArray()
+            res.send(result)
+        })
+
+        app.patch('/withdraw/:id',varifyToken,verifyAdmin, async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            console.log({id, query});
+            const updatedStatus = {
+                $set: {
+                    status: 'approved'
+                }
+            }
+
+            const request = await withdrawCollection.findOne(query)
+            console.log(request);
+            const userQuery = { email: request.worker_email }
+            const updateCoin = {
+                $inc: {
+                    coin: - request.withdrawal_coin
+                }
+            }
+            const coinRes = await userCollection.updateOne(userQuery, updateCoin)
+
+            const result = await withdrawCollection.updateOne(query, updatedStatus)
+
+            res.send(result)
+
+        })
+
+        app.post('/withdraws', varifyToken, verifyWorker, async (req, res) => {
+            const withdraw = req.body
+            console.log(withdraw);
+            const result = await withdrawCollection.insertOne(withdraw)
+            res.send(result)
+        })
 
 
         // users related apis
 
         // admin access
-        app.get('/users', varifyToken, async (req, res) => {
+        app.get('/users', varifyToken, verifyAdmin, async (req, res) => {
             const result = await userCollection.find().toArray()
             res.send(result)
         })
@@ -289,7 +371,7 @@ async function run() {
         })
 
         // admin changing user role
-        app.patch('/users/:id',varifyToken, async (req, res) => {
+        app.patch('/users/:id', varifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id
             const { role: newRole } = req.body
             const query = { _id: new ObjectId(id) }
@@ -304,7 +386,7 @@ async function run() {
         })
 
         // admin deleting user
-        app.delete('/users/:id',varifyToken, async (req, res) => {
+        app.delete('/users/:id', varifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await userCollection.deleteOne(query)
@@ -315,7 +397,7 @@ async function run() {
         // stats api
 
         // admin stat
-        app.get('/adminStats/:email',varifyToken, async (req, res) => {
+        app.get('/adminStats/:email', varifyToken, verifyAdmin, async (req, res) => {
             const buyerEmail = req.params.email;
 
             const workers = await userCollection.countDocuments({ role: 'worker' })
@@ -343,7 +425,7 @@ async function run() {
 
 
         // buyer stat
-        app.get('/buyerStats/:email',varifyToken, async (req, res) => {
+        app.get('/buyerStats/:email', varifyToken, verifyBuyer, async (req, res) => {
             const buyerEmail = req.params.email;
 
             const tasks = await taskCollection.countDocuments({ buyer_email: buyerEmail })
@@ -373,7 +455,7 @@ async function run() {
 
 
         // workerStats
-        app.get('/workerStats/:email',varifyToken, async (req, res) => {
+        app.get('/workerStats/:email', varifyToken, verifyWorker, async (req, res) => {
             const workerEmail = req.params.email;
 
             const submissions = await submissionCollection.countDocuments({ worker_email: workerEmail })
