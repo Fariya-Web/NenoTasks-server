@@ -2,6 +2,7 @@ const express = require('express')
 const cors = require('cors')
 const app = express()
 require('dotenv').config()
+var jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
 
@@ -33,13 +34,32 @@ async function run() {
 
 
         // jwt apis
+        app.post('/jwt', async (req, res) => {
+            const user = req.body
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '6h' })
+            res.send({ token })
+        })
 
+        // middlewares
+        const varifyToken = (req, res, next) => {
+            if (!req.headers.authorization) {
+                return res.status(401).send({ message: 'forbidden access' })
+            }
+            const token = req.headers.authorization.split(' ')[1]
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
+                if (error) {
+                    return res.status(401).send({ message: 'forbidden access' })
+                }
+                req.decoded = decoded
+                next()
+            })
+        }
 
 
         // task related apis
 
         // admin access
-        app.get('/tasks', async (req, res) => {
+        app.get('/tasks', varifyToken, async (req, res) => {
             const result = await taskCollection.find().toArray()
             res.send(result)
         })
@@ -71,21 +91,21 @@ async function run() {
         app.delete('/task/:id', async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
-            
+
             const task = await taskCollection.findOne(query)
             console.log(task);
             const buyerEmail = task.buyer_email
             console.log(buyerEmail);
-            const buyerQuery = {email: buyerEmail}
+            const buyerQuery = { email: buyerEmail }
             const updatedBuyerCoin = {
                 $inc: {
-                    coin: + (task.required_workers*task.payable_amount) , //increasing buyer coin
+                    coin: + (task.required_workers * task.payable_amount), //increasing buyer coin
                 }
             }
             const userCoinRes = await userCollection.updateOne(buyerQuery, updatedBuyerCoin)
             // finally deleting after buyers coin update
             const result = await taskCollection.deleteOne(query)
-            
+
             res.send(result)
         })
 
@@ -141,7 +161,7 @@ async function run() {
             const workerQuery = { email: submission.worker_email }
             const updateUserCoin = {
                 $inc: {
-                    coin: + submission.payable_amount, 
+                    coin: + submission.payable_amount,
                 }
             }
 
@@ -176,6 +196,24 @@ async function run() {
             res.send(result)
         })
 
+
+        // user varify api
+
+        // admin
+        app.get('/user/admin/:email', async (req, res) => {
+            const email = req.params.email
+            if (email !== req.decoded?.email) {
+                return res.status(403).send({ message: 'unauthorized access' })
+            }
+
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            let admin = false
+            if (user) {
+                admin = user?.role === 'admin'
+            }
+            res.send({ admin })
+        })
 
 
         // users related apis
@@ -272,7 +310,7 @@ async function run() {
 
             const tasks = await taskCollection.countDocuments({ buyer_email: buyerEmail })
             // const payments = await paymentCollection.estimatedDocumentCount()
-            
+
             const pendingTasks = await taskCollection.aggregate([
                 {
                     $match: { buyer_email: buyerEmail } // Filter tasks by buyer_email
@@ -286,7 +324,7 @@ async function run() {
                     }
                 }
             ]).toArray()
-            
+
             const totalPendingTasks = pendingTasks.length > 0 ? pendingTasks[0].totalPendingTasks : 0;
 
             res.send({
@@ -303,10 +341,10 @@ async function run() {
             const submissions = await submissionCollection.countDocuments({ worker_email: workerEmail })
             const pendingSubmissions = await submissionCollection.countDocuments({ worker_email: workerEmail, status: 'pending' })
             // const payments = await paymentCollection.estimatedDocumentCount()
-            
+
             const payAmount = await submissionCollection.aggregate([
                 {
-                    $match: { worker_email: workerEmail, status: 'approved'   } 
+                    $match: { worker_email: workerEmail, status: 'approved' }
                 },
                 {
                     $group: {
@@ -317,7 +355,7 @@ async function run() {
                     }
                 }
             ]).toArray()
-            
+
             const totalPayAmount = payAmount.length > 0 ? payAmount[0].totalPayAmount : 0;
 
             res.send({
