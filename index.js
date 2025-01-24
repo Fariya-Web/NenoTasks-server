@@ -43,17 +43,71 @@ async function run() {
         // middlewares
         const varifyToken = (req, res, next) => {
             if (!req.headers.authorization) {
-                return res.status(401).send({ message: 'forbidden access' })
+                return res.status(401).send({ message: 'Unauthorized access' })
             }
             const token = req.headers.authorization.split(' ')[1]
             jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
                 if (error) {
-                    return res.status(401).send({ message: 'forbidden access' })
+                    return res.status(403).send({ message: 'Forbidden access' })
                 }
+                console.log('Decoded Token:', decoded);
                 req.decoded = decoded
                 next()
             })
         }
+
+        // role varify api
+
+        // admin
+        app.get('/user/admin/:email', varifyToken, async (req, res) => {
+            const email = req.params.email
+            if (email !== req.decoded.email) {
+                return res.status(403).send({ message: 'unauthorized access' })
+            }
+
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            let admin = false
+            if (user) {
+                admin = user?.role === 'admin'
+            }
+            res.send({ admin })
+        })
+
+        // buyer
+        app.get('/user/buyer/:email', varifyToken, async (req, res) => {
+            const email = req.params.email
+            if (email !== req.decoded?.email) {
+                return res.status(403).send({ message: 'unauthorized access' })
+            }
+
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            let buyer = false
+            if (user) {
+                buyer = user?.role === 'buyer'
+            }
+            res.send({ buyer })
+        })
+
+
+        // worker
+        app.get('/user/worker/:email', varifyToken, async (req, res) => {
+            const email = req.params.email
+            if (email !== req.decoded?.email) {
+                return res.status(403).send({ message: 'unauthorized access' })
+            }
+
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            let worker = false
+            if (user) {
+                worker = user?.role === 'worker'
+            }
+            res.send({ worker })
+        })
+
+
 
 
         // task related apis
@@ -65,7 +119,7 @@ async function run() {
         })
 
         // tasks posted by buyer, buyer access
-        app.get('/tasks/:email', async (req, res) => {
+        app.get('/tasks/:email', varifyToken, async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
             const result = await taskCollection.find(query).toArray()
@@ -73,7 +127,7 @@ async function run() {
         })
 
         // task details, worker access
-        app.get('/task/:id', async (req, res) => {
+        app.get('/task/:id', varifyToken, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await taskCollection.findOne(query)
@@ -81,14 +135,14 @@ async function run() {
         })
 
         // buyer posting tasks
-        app.post('/tasks', async (req, res) => {
+        app.post('/tasks', varifyToken, async (req, res) => {
             const task = req.body
             const result = await taskCollection.insertOne(task)
             res.send(result)
         })
 
         // buyer & admin deleting task
-        app.delete('/task/:id', async (req, res) => {
+        app.delete('/task/:id', varifyToken, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
 
@@ -114,7 +168,7 @@ async function run() {
         // submission related apis
 
         // all submission by single worker, worker access
-        app.get('/submissions/:email', async (req, res) => {
+        app.get('/submissions/:email', varifyToken, async (req, res) => {
             const email = req.params.email
             const query = { worker_email: email }
             const result = await submissionCollection.find(query).toArray()
@@ -122,7 +176,7 @@ async function run() {
         })
 
         // buyer tasks - submissions, buyer access
-        app.get('/submission/:email', async (req, res) => {
+        app.get('/submission/:email', varifyToken, async (req, res) => {
             const email = req.params.email
             const query = { buyer_email: email }
             const result = await submissionCollection.find(query).toArray()
@@ -130,7 +184,7 @@ async function run() {
         })
 
         // worker posting submission, worker access
-        app.post('/submissions', async (req, res) => {
+        app.post('/submissions', varifyToken, async (req, res) => {
             const submission = req.body
             const result = await submissionCollection.insertOne(submission)
 
@@ -146,7 +200,7 @@ async function run() {
         })
 
         // submission approve , buyer access
-        app.patch('/submit/:id', async (req, res) => {
+        app.patch('/submit/:id', varifyToken, async (req, res) => {
             const id = req.params.id
 
             const query = { _id: new ObjectId(id) }
@@ -171,7 +225,7 @@ async function run() {
         })
 
         // submission reject, buyer access
-        app.patch('/submitR/:id', async (req, res) => {
+        app.patch('/submitR/:id', varifyToken, async (req, res) => {
             const id = req.params.id
 
             const query = { _id: new ObjectId(id) }
@@ -197,29 +251,12 @@ async function run() {
         })
 
 
-        // user varify api
-
-        // admin
-        app.get('/user/admin/:email', async (req, res) => {
-            const email = req.params.email
-            if (email !== req.decoded?.email) {
-                return res.status(403).send({ message: 'unauthorized access' })
-            }
-
-            const query = { email: email }
-            const user = await userCollection.findOne(query)
-            let admin = false
-            if (user) {
-                admin = user?.role === 'admin'
-            }
-            res.send({ admin })
-        })
 
 
         // users related apis
 
         // admin access
-        app.get('/users', async (req, res) => {
+        app.get('/users', varifyToken, async (req, res) => {
             const result = await userCollection.find().toArray()
             res.send(result)
         })
@@ -231,12 +268,13 @@ async function run() {
             res.send(result)
         })
 
+        // no token
         app.get('/topworkers', async (req, res) => {
             const query = { role: 'worker' }
             const result = await userCollection.find(query).sort({ coin: -1 }).limit(6).toArray()
             res.send(result)
         })
-
+        // no token
         app.post('/users', async (req, res) => {
             const user = req.body
 
@@ -251,7 +289,7 @@ async function run() {
         })
 
         // admin changing user role
-        app.patch('/users/:id', async (req, res) => {
+        app.patch('/users/:id',varifyToken, async (req, res) => {
             const id = req.params.id
             const { role: newRole } = req.body
             const query = { _id: new ObjectId(id) }
@@ -266,7 +304,7 @@ async function run() {
         })
 
         // admin deleting user
-        app.delete('/users/:id', async (req, res) => {
+        app.delete('/users/:id',varifyToken, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await userCollection.deleteOne(query)
@@ -277,7 +315,7 @@ async function run() {
         // stats api
 
         // admin stat
-        app.get('/adminStats/:email', async (req, res) => {
+        app.get('/adminStats/:email',varifyToken, async (req, res) => {
             const buyerEmail = req.params.email;
 
             const workers = await userCollection.countDocuments({ role: 'worker' })
@@ -305,7 +343,7 @@ async function run() {
 
 
         // buyer stat
-        app.get('/buyerStats/:email', async (req, res) => {
+        app.get('/buyerStats/:email',varifyToken, async (req, res) => {
             const buyerEmail = req.params.email;
 
             const tasks = await taskCollection.countDocuments({ buyer_email: buyerEmail })
@@ -335,7 +373,7 @@ async function run() {
 
 
         // workerStats
-        app.get('/workerStats/:email', async (req, res) => {
+        app.get('/workerStats/:email',varifyToken, async (req, res) => {
             const workerEmail = req.params.email;
 
             const submissions = await submissionCollection.countDocuments({ worker_email: workerEmail })
