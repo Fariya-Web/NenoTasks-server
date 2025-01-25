@@ -32,6 +32,7 @@ async function run() {
         const submissionCollection = database.collection('submissions')
         const userCollection = database.collection('users')
         const withdrawCollection = database.collection('withdraws')
+        const packageCollection = database.collection('packages')
 
 
         // jwt apis
@@ -485,6 +486,21 @@ async function run() {
             })
         })
 
+
+        // Payment related apis
+
+        // packages
+        app.get('/packages', async(req, res)=>{
+            const result = await packageCollection.find().toArray()
+            res.send(result)
+        })
+
+        app.get('/packages/:id', async(req, res)=>{
+            const id = req.params.id
+            const query = {_id: new ObjectId(id)}
+            const result = await packageCollection.findOne(query)
+            res.send(result)
+        })
 
 
         // Send a ping to confirm a successful connection
