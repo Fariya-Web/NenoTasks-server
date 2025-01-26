@@ -1,17 +1,18 @@
 const express = require('express')
 const cors = require('cors')
 const app = express()
-require('dotenv').config()
 var jwt = require('jsonwebtoken');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+require('dotenv').config()
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000;
 
 // middleweres
 app.use(cors())
 app.use(express.json())
 
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.mhwjc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-console.log(uri);
+
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -33,6 +34,7 @@ async function run() {
         const userCollection = database.collection('users')
         const withdrawCollection = database.collection('withdraws')
         const packageCollection = database.collection('packages')
+        const paymentCollection = database.collection('payments')
 
 
         // jwt apis
@@ -52,7 +54,7 @@ async function run() {
                 if (error) {
                     return res.status(403).send({ message: 'Forbidden access' })
                 }
-                console.log('Decoded Token:', decoded);
+
                 req.decoded = decoded
                 next()
             })
@@ -191,9 +193,7 @@ async function run() {
             const query = { _id: new ObjectId(id) }
 
             const task = await taskCollection.findOne(query)
-            console.log(task);
             const buyerEmail = task.buyer_email
-            console.log(buyerEmail);
             const buyerQuery = { email: buyerEmail }
             const updatedBuyerCoin = {
                 $inc: {
@@ -298,14 +298,15 @@ async function run() {
         // withdeaw related apis
 
         app.get('/withdraws', varifyToken, async (req, res) => {
+        const query = {status : 'pending'}
             const result = await withdrawCollection.find().toArray()
             res.send(result)
         })
 
-        app.patch('/withdraw/:id',varifyToken,verifyAdmin, async (req, res) => {
+        app.patch('/withdraw/:id', varifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
-            console.log({id, query});
+
             const updatedStatus = {
                 $set: {
                     status: 'approved'
@@ -313,7 +314,7 @@ async function run() {
             }
 
             const request = await withdrawCollection.findOne(query)
-            console.log(request);
+
             const userQuery = { email: request.worker_email }
             const updateCoin = {
                 $inc: {
@@ -330,10 +331,62 @@ async function run() {
 
         app.post('/withdraws', varifyToken, verifyWorker, async (req, res) => {
             const withdraw = req.body
-            console.log(withdraw);
+
             const result = await withdrawCollection.insertOne(withdraw)
             res.send(result)
         })
+
+        // Payment related apis
+
+        // packages
+        app.get('/packages', async (req, res) => {
+            const result = await packageCollection.find().toArray()
+            res.send(result)
+        })
+
+        app.get('/package/:id', async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const result = await packageCollection.findOne(query)
+            res.send(result)
+        })
+
+        // payment intent
+        app.post('/create-payment-intent', async (req, res) => {
+            const { price } = req.body
+            const amount = parseInt(price * 100)
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            })
+
+            res.send({ clientSecret: paymentIntent.client_secret })
+        })
+
+        app.post('/payments', varifyToken, verifyBuyer, async (req, res) => {
+            const payment = req.body
+
+            const query = { email: payment.email }
+            const updatedCoin = {
+                $inc: {
+                    coin: + payment.coin
+                }
+            }
+            const coinRes = await userCollection.updateOne(query, updatedCoin)
+
+            const result = await paymentCollection.insertOne(payment)
+            res.send(result)
+        })
+
+        app.get('/payments/:email', varifyToken, verifyBuyer, async (req, res) => {
+            const email = req.params.email
+            const query = { email: email }
+            const result = await paymentCollection.find(query).toArray()
+            res.send(result)
+        })
+
 
 
         // users related apis
@@ -395,6 +448,8 @@ async function run() {
         })
 
 
+
+
         // stats api
 
         // admin stat
@@ -424,13 +479,26 @@ async function run() {
             })
         })
 
-
         // buyer stat
         app.get('/buyerStats/:email', varifyToken, verifyBuyer, async (req, res) => {
             const buyerEmail = req.params.email;
 
             const tasks = await taskCollection.countDocuments({ buyer_email: buyerEmail })
-            // const payments = await paymentCollection.estimatedDocumentCount()
+            const payments = await paymentCollection.aggregate([
+                {
+                    $match: { email: buyerEmail } // Filter tasks by buyer_email
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalPayments: {
+                            $sum: '$price'
+                        }
+                    }
+                }
+            ]).toArray()
+            const totalPayments = payments.length > 0 ? payments[0].totalPayments : 0;
+
 
             const pendingTasks = await taskCollection.aggregate([
                 {
@@ -445,15 +513,15 @@ async function run() {
                     }
                 }
             ]).toArray()
-
             const totalPendingTasks = pendingTasks.length > 0 ? pendingTasks[0].totalPendingTasks : 0;
+
 
             res.send({
                 tasks,
-                totalPendingTasks
+                totalPendingTasks,
+                totalPayments
             })
         })
-
 
         // workerStats
         app.get('/workerStats/:email', varifyToken, verifyWorker, async (req, res) => {
@@ -485,23 +553,6 @@ async function run() {
                 pendingSubmissions,
             })
         })
-
-
-        // Payment related apis
-
-        // packages
-        app.get('/packages', async(req, res)=>{
-            const result = await packageCollection.find().toArray()
-            res.send(result)
-        })
-
-        app.get('/packages/:id', async(req, res)=>{
-            const id = req.params.id
-            const query = {_id: new ObjectId(id)}
-            const result = await packageCollection.findOne(query)
-            res.send(result)
-        })
-
 
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
