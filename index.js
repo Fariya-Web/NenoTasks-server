@@ -158,7 +158,7 @@ async function run() {
 
         // task related apis
 
-        // admin access
+        // admin & worker access
         app.get('/tasks', varifyToken, async (req, res) => {
             const result = await taskCollection.find().toArray()
             res.send(result)
@@ -172,8 +172,8 @@ async function run() {
             res.send(result)
         })
 
-        // task details, worker access
-        app.get('/task/:id', varifyToken, verifyWorker, async (req, res) => {
+        // task details, worker & buyer access
+        app.get('/task/:id', varifyToken, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await taskCollection.findOne(query)
@@ -184,6 +184,25 @@ async function run() {
         app.post('/tasks', varifyToken, verifyBuyer, async (req, res) => {
             const task = req.body
             const result = await taskCollection.insertOne(task)
+            res.send(result)
+        })
+
+        // buyer editing task
+        app.patch('/task/:id', varifyToken, verifyBuyer, async (req, res) => {
+            const id = req.params.id
+            console.log(id);
+            const info = req.body 
+            console.log(info);   
+            const query = { _id: new ObjectId(id) }
+            const updatedTask = {
+                $set:{
+                    task_title: info.task_title,
+                    task_detail: info.task_detail,
+                    submission_info: info.submission_info
+                }
+            }
+            console.log(updatedTask);
+            const result = await taskCollection.updateOne(query, updatedTask)
             res.send(result)
         })
 
@@ -339,7 +358,7 @@ async function run() {
         // Payment related apis
 
         // packages
-        app.get('/packages', async (req, res) => {
+        app.get('/packages',varifyToken, verifyBuyer, async (req, res) => {
             const result = await packageCollection.find().toArray()
             res.send(result)
         })
@@ -354,10 +373,13 @@ async function run() {
         // payment intent
         app.post('/create-payment-intent', async (req, res) => {
             const { price } = req.body
-            const amount = parseInt(price * 100)
+
+            if (!price || isNaN(price)) {
+                return res.status(400).send({ error: 'Invalid price provided' });
+            }
 
             const paymentIntent = await stripe.paymentIntents.create({
-                amount: amount,
+                amount: parseInt(price),
                 currency: 'usd',
                 payment_method_types: ['card']
             })
@@ -556,7 +578,7 @@ async function run() {
 
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
