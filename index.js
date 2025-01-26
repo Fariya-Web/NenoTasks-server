@@ -298,8 +298,8 @@ async function run() {
         // withdeaw related apis
 
         app.get('/withdraws', varifyToken, async (req, res) => {
-        const query = {status : 'pending'}
-            const result = await withdrawCollection.find().toArray()
+            const query = {status : 'pending'}
+            const result = await withdrawCollection.find(query).toArray()
             res.send(result)
         })
 
@@ -463,7 +463,7 @@ async function run() {
                 {
                     $group: {
                         _id: null,
-                        totalCoin: {
+                        totalCoins: {
                             $sum: '$coin'
                         }
                     }
