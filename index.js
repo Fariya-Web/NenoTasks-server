@@ -35,6 +35,7 @@ async function run() {
         const withdrawCollection = database.collection('withdraws')
         const packageCollection = database.collection('packages')
         const paymentCollection = database.collection('payments')
+        const notificationCollection = database.collection('notifications')
 
 
         // jwt apis
@@ -406,6 +407,22 @@ async function run() {
             const email = req.params.email
             const query = { email: email }
             const result = await paymentCollection.find(query).toArray()
+            res.send(result)
+        })
+
+
+        // notification related
+
+        app.post('/notifications', varifyToken, async(req, res)=>{
+            const notification = req.body
+            const result = await notificationCollection.insertOne(notification)
+            res.send(result)
+        })
+
+        app.get('/notifacions/:email',varifyToken, async(req, res)=>{
+            const email = req.params.email
+            const query = {ToEmail: email}
+            const result = await notificationCollection.find(query).sort({ Time : -1 }).toArray()
             res.send(result)
         })
 
