@@ -7,10 +7,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000;
 
 // middleweres
-app.use(cors({
-    origin: ['http://localhost:5173'], // Allow frontend origin
-    credentials: true // Allow cookies, authorization headers
-}));
+app.use(cors());
 app.use(express.json())
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
