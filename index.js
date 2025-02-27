@@ -7,7 +7,10 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000;
 
 // middleweres
-app.use(cors())
+app.use(cors({
+    origin: ['http://localhost:5173'], // Allow frontend origin
+    credentials: true // Allow cookies, authorization headers
+}));
 app.use(express.json())
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -181,6 +184,13 @@ async function run() {
             res.send(result)
         })
 
+
+        // top worker task
+        app.get('/toptasks', async (req, res) => {
+            const result = await taskCollection.find().sort({ required_workers: -1 }).limit(6).toArray()
+            res.send(result)
+        })
+
         // buyer posting tasks, buyer access
         app.post('/tasks', varifyToken, verifyBuyer, async (req, res) => {
             const task = req.body
@@ -192,11 +202,11 @@ async function run() {
         app.patch('/task/:id', varifyToken, verifyBuyer, async (req, res) => {
             const id = req.params.id
             console.log(id);
-            const info = req.body 
-            console.log(info);   
+            const info = req.body
+            console.log(info);
             const query = { _id: new ObjectId(id) }
             const updatedTask = {
-                $set:{
+                $set: {
                     task_title: info.task_title,
                     task_detail: info.task_detail,
                     submission_info: info.submission_info
@@ -318,7 +328,7 @@ async function run() {
         // withdeaw related apis
 
         app.get('/withdraws', varifyToken, async (req, res) => {
-            const query = {status : 'pending'}
+            const query = { status: 'pending' }
             const result = await withdrawCollection.find(query).toArray()
             res.send(result)
         })
@@ -359,7 +369,7 @@ async function run() {
         // Payment related apis
 
         // packages
-        app.get('/packages',varifyToken, verifyBuyer, async (req, res) => {
+        app.get('/packages', varifyToken, verifyBuyer, async (req, res) => {
             const result = await packageCollection.find().toArray()
             res.send(result)
         })
@@ -413,16 +423,16 @@ async function run() {
 
         // notification related
 
-        app.post('/notifications', varifyToken, async(req, res)=>{
+        app.post('/notifications', varifyToken, async (req, res) => {
             const notification = req.body
             const result = await notificationCollection.insertOne(notification)
             res.send(result)
         })
 
-        app.get('/notifacions/:email',varifyToken, async(req, res)=>{
+        app.get('/notifacions/:email', varifyToken, async (req, res) => {
             const email = req.params.email
-            const query = {ToEmail: email}
-            const result = await notificationCollection.find(query).sort({ Time : -1 }).toArray()
+            const query = { ToEmail: email }
+            const result = await notificationCollection.find(query).sort({ Time: -1 }).toArray()
             res.send(result)
         })
 
@@ -446,7 +456,7 @@ async function run() {
         // no token
         app.get('/topworkers', async (req, res) => {
             const query = { role: 'worker' }
-            const result = await userCollection.find(query).sort({ coin: -1 }).limit(6).toArray()
+            const result = await userCollection.find(query).sort({ coin: -1 }).limit(8).toArray()
             res.send(result)
         })
         // no token
