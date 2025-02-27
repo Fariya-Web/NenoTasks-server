@@ -164,7 +164,8 @@ async function run() {
 
         // admin & worker access
         app.get('/tasks', varifyToken, async (req, res) => {
-            const result = await taskCollection.find().toArray()
+            const query = { required_workers : { $gt: 0 } }
+            const result = await taskCollection.find(query).toArray()
             res.send(result)
         })
 
